@@ -1,0 +1,7 @@
+.git
+.gitignore
+.DS_Store
+*.docx
+sources/
+README.md
+start-local.command

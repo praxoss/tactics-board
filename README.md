@@ -54,6 +54,14 @@ Pour arrêter le serveur local, utilise `Ctrl+C` dans le Terminal.
 
 Les combinaisons sont enregistrées dans le stockage local du navigateur. L’application n’envoie aucune donnée vers un serveur. Utilise l’export JSON pour conserver une sauvegarde ou déplacer une combinaison vers un autre navigateur.
 
+## Déploiement Cloud Run
+
+Le service est déployé sur le projet GCP existant, dans la région `europe-west1` :
+
+[Ouvrir Implaqubles Tactics Board](https://implaqubles-tactics-board-h2b47nssaq-ew.a.run.app)
+
+Le conteneur utilise Nginx pour servir les fichiers statiques sur le port `8080`, attendu par Cloud Run. Les fichiers `Dockerfile`, `nginx.conf` et `.dockerignore` décrivent ce déploiement.
+
 ## Dépôt
 
 Ce projet est conservé dans un dépôt GitHub privé pour l’équipe des Implacables.
