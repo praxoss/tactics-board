@@ -51,6 +51,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .panel-close:hover { color: #fff; }
 .panel.is-collapsed { bottom: auto; overflow: hidden; }
 .panel.is-collapsed .panel-header { margin-bottom: 0; }
+.panel.is-collapsed .panel-body { display: none; }
 .play-card { width: 100%; margin-bottom: 14px; padding: 11px; border: 1px solid rgba(103,232,249,.22); border-radius: 16px; color: #fff; background: rgba(14,165,233,.12); text-align: left; }
 .play-card strong { display: block; margin-top: 3px; overflow: hidden; color: #fff; text-overflow: ellipsis; white-space: nowrap; }
 .tools { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; margin: 8px 0 14px; }
