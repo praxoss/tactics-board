@@ -40,13 +40,16 @@
   let moving = null;
   let drawing = null;
   let setupState = { kind: '', possession: 'attack', size: 5, locationId: 'halfway-left' };
+  const compactLayout = window.matchMedia?.('(max-width: 850px)').matches;
+  let controlsCollapsed = Boolean(compactLayout);
+  let timelineCollapsed = Boolean(compactLayout);
 
   const app = document.querySelector('#app');
   app.innerHTML = `
     <div class="shell">
       <header class="topbar">
         <div class="brand"><div class="brand-mark">🏉</div><div><div class="eyebrow">Les Implacables 1993</div><div class="brand-title">Rugby Tactics Board <span class="play-name" id="top-name"></span></div></div></div>
-        <div class="top-actions"><button class="top-btn" id="show-controls" style="display:none">☰ Show Controls</button><button class="top-btn" id="reset-btn">New Play</button><button class="top-btn primary" id="top-share">Save / Share</button></div>
+        <div class="top-actions"><button class="top-btn" id="reset-btn">New Play</button><button class="top-btn primary" id="top-share">Save / Share</button></div>
       </header>
       <main class="workspace">
         <div class="board-wrap" id="board-wrap"><svg id="board" viewBox="0 0 ${W} ${H}" aria-label="Rugby tactics board"></svg><div class="board-empty" id="empty-hint"><span>Add players with the counters on the left, then draw the play phase by phase.</span></div></div>
@@ -93,13 +96,14 @@
     const stage = activeStage();
     const homeCount = stage.players.filter(p => p.team === 'attack').length;
     const awayCount = stage.players.filter(p => p.team === 'defence').length;
-    leftPanel.innerHTML = `<div class="panel-header"><div><h2>Board Controls</h2><p>Create and manage your play</p></div><button class="panel-close" id="hide-left" aria-label="Hide controls">×</button></div>
-      <button class="play-card" id="open-meta"><span class="eyebrow">Play</span><strong>${esc(data.metadata.name || 'Untitled Play')}</strong></button>
+    leftPanel.classList.toggle('is-collapsed', controlsCollapsed);
+    leftPanel.innerHTML = `<div class="panel-header"><div><h2>Board Controls</h2><p>Create and manage your play</p></div><button class="panel-toggle" id="toggle-left" aria-label="${controlsCollapsed ? 'Expand controls' : 'Collapse controls'}" aria-expanded="${!controlsCollapsed}">${controlsCollapsed ? '＋' : '−'}</button></div>
+      <div class="panel-body" id="controls-body"><button class="play-card" id="open-meta"><span class="eyebrow">Play</span><strong>${esc(data.metadata.name || 'Untitled Play')}</strong></button>
       <div class="section-title">Tools</div><div class="tools">${TOOLS.map(([id, label]) => `<button class="tool-btn ${tool === id ? 'active' : ''}" data-tool="${id}">${label}</button>`).join('')}</div>
       <div class="separator"></div><div class="section-title">Teams</div>
       ${countControl('Home team', 'home', homeCount, '#0ea5e9')} ${countControl('Away reference', 'away', awayCount, '#f43f5e')}
       <div class="separator"></div><div class="section-title">Board View</div><div class="choice-grid">${BOARD_VIEWS.map(([id, label]) => `<button class="choice-btn ${stage.boardView === id ? 'active' : ''}" data-view="${id}">${label}</button>`).join('')}</div>
-      <div class="separator"></div><div class="section-title">SET PIECE</div><div class="quick-stack"><button class="quick-btn" id="lineout-btn">Lineout</button><button class="quick-btn" id="scrum-btn">Scrum</button></div><div id="setup-box"></div>`;
+      <div class="separator"></div><div class="section-title">SET PIECE</div><div class="quick-stack"><button class="quick-btn" id="lineout-btn">Lineout</button><button class="quick-btn" id="scrum-btn">Scrum</button></div><div id="setup-box"></div></div>`;
     rightPanel.innerHTML = `<div class="panel-header"><div><h2>Quick Actions</h2><p>History, templates, and files</p></div></div>
       <div class="section-title">History</div><div class="quick-stack"><button class="quick-btn" id="undo-btn" ${undoStack.length ? '' : 'disabled'}>↶ Undo</button><button class="quick-btn" id="redo-btn" ${redoStack.length ? '' : 'disabled'}>↷ Redo</button></div>
       <div class="separator"></div><div class="section-title">SAVE / LOAD</div><div class="quick-stack"><button class="quick-btn" id="share-btn">Share</button><button class="quick-btn" id="import-btn">Import</button></div><input type="file" id="import-file" accept="application/json" hidden />
@@ -109,8 +113,7 @@
   }
   function countControl(label, team, count, color) { return `<div class="count-row"><label><i class="team-dot" style="background:${color}"></i>${label}</label><div class="stepper"><button data-count="${team}" data-delta="-1">−</button><span>${count}</span><button data-count="${team}" data-delta="1">+</button></div></div>`; }
   function bindPanelEvents() {
-    leftPanel.querySelector('#hide-left').onclick = () => { leftPanel.classList.add('hidden'); document.querySelector('#show-controls').style.display = ''; };
-    document.querySelector('#show-controls').onclick = () => { leftPanel.classList.remove('hidden'); document.querySelector('#show-controls').style.display = 'none'; };
+    leftPanel.querySelector('#toggle-left').onclick = () => { controlsCollapsed = !controlsCollapsed; renderPanels(); };
     leftPanel.querySelector('#open-meta').onclick = () => openModal('metadata');
     leftPanel.querySelectorAll('[data-tool]').forEach(btn => btn.onclick = () => { tool = btn.dataset.tool; renderPanels(); });
     leftPanel.querySelectorAll('[data-view]').forEach(btn => btn.onclick = () => commit(() => activeStage().boardView = btn.dataset.view));
@@ -371,7 +374,13 @@
     render();
   }
   function cyclePlaybackSpeed() { playSpeed = ({ 0.5: 1, 1: 1.5, 1.5: 2, 2: 0.5 })[playSpeed] || 1; if (playing) { window.cancelAnimationFrame(playFrame); window.clearTimeout(playTimer); playFrame = null; playTimer = null; playTransition = null; startPlaybackTransition(); } renderTimeline(); }
-  function renderTimeline() { timeline.innerHTML = `<div class="timeline-row"><button class="quick-btn" id="play-btn">${playing ? 'Pause' : 'Play'}</button><button class="quick-btn" id="add-stage">＋ Stage</button><button class="quick-btn" id="remove-stage" ${data.stages.length === 1 ? 'disabled' : ''}>− Stage</button><button class="quick-btn" id="speed-btn">${playSpeed}x</button><input class="range" type="range" min="0" max="${data.stages.length-1}" value="${data.currentStageIndex}" aria-label="Scrub timeline stages" /><span class="stage-label">Stage ${data.currentStageIndex+1} / ${data.stages.length}</span></div>`; timeline.querySelector('#play-btn').onclick = togglePlayback; timeline.querySelector('#add-stage').onclick = addStage; timeline.querySelector('#remove-stage').onclick = removeStage; timeline.querySelector('#speed-btn').onclick = cyclePlaybackSpeed; timeline.querySelector('.range').oninput = e => setStage(Number(e.target.value)); }
+  function renderTimeline() {
+    timeline.classList.toggle('is-collapsed', timelineCollapsed);
+    timeline.innerHTML = `<div class="timeline-header"><span class="stage-summary">Stages · Stage ${data.currentStageIndex + 1} / ${data.stages.length}</span><button class="timeline-toggle" id="toggle-timeline" aria-label="${timelineCollapsed ? 'Expand stages' : 'Collapse stages'}" aria-expanded="${!timelineCollapsed}">${timelineCollapsed ? '＋ Stages' : '−'}</button></div>${timelineCollapsed ? '' : `<div class="timeline-content"><div class="timeline-row"><button class="quick-btn" id="play-btn">${playing ? 'Pause' : 'Play'}</button><button class="quick-btn" id="add-stage">＋ Stage</button><button class="quick-btn" id="remove-stage" ${data.stages.length === 1 ? 'disabled' : ''}>− Stage</button><button class="quick-btn" id="speed-btn">${playSpeed}x</button><input class="range" type="range" min="0" max="${data.stages.length-1}" value="${data.currentStageIndex}" aria-label="Scrub timeline stages" /><span class="stage-label">Stage ${data.currentStageIndex+1} / ${data.stages.length}</span></div></div>`}`;
+    timeline.querySelector('#toggle-timeline').onclick = () => { timelineCollapsed = !timelineCollapsed; renderTimeline(); };
+    if (timelineCollapsed) return;
+    timeline.querySelector('#play-btn').onclick = togglePlayback; timeline.querySelector('#add-stage').onclick = addStage; timeline.querySelector('#remove-stage').onclick = removeStage; timeline.querySelector('#speed-btn').onclick = cyclePlaybackSpeed; timeline.querySelector('.range').oninput = e => setStage(Number(e.target.value));
+  }
 
   function openModal(kind) { modal = kind; renderModal(); }
   function renderModal() { document.querySelector('.modal-backdrop')?.remove(); if (!modal) return; const meta = data.metadata; const wrap = document.createElement('div'); wrap.className='modal-backdrop'; wrap.innerHTML = `<div class="modal"><div class="panel-header"><div><h2>${modal === 'metadata' ? 'Save This Play' : 'Import'}</h2><p>The active play is already saved in this browser.</p></div><button class="panel-close" id="modal-close">×</button></div>${modal === 'metadata' ? `<label class="field">Play name<input id="meta-name" value="${esc(meta.name)}" maxlength="120" /></label><label class="field">Description<textarea id="meta-description" rows="4" maxlength="1000">${esc(meta.description)}</textarea></label><label class="field">Tags<input id="meta-tags" value="${esc(meta.tags.join(', '))}" placeholder="e.g. 40/40, FAUSSE, lineout" /></label><div class="help"><strong>Available formats</strong><br />Full JSON backup or a shareable link that reopens this exact play.</div><div class="modal-actions"><button class="top-btn" id="modal-cancel">Cancel</button><button class="top-btn" id="modal-share">Copy Link</button><button class="top-btn" id="modal-export">Export JSON</button><button class="top-btn primary" id="modal-save">Save</button></div>` : ''}</div>`; document.body.append(wrap); wrap.querySelector('#modal-close').onclick = () => { modal=null; renderModal(); }; wrap.querySelector('#modal-cancel')?.addEventListener('click', () => { modal=null; renderModal(); }); wrap.querySelector('#modal-save')?.addEventListener('click', () => { commit(() => { data.metadata.name = wrap.querySelector('#meta-name').value.trim() || 'Untitled Play'; data.metadata.description = wrap.querySelector('#meta-description').value.trim(); data.metadata.tags = wrap.querySelector('#meta-tags').value.split(',').map(s=>s.trim()).filter(Boolean).slice(0,12); }); modal=null; renderModal(); showNotice('Play saved locally.'); }); wrap.querySelector('#modal-export')?.addEventListener('click', () => { exportJson(); modal=null; renderModal(); }); wrap.querySelector('#modal-share')?.addEventListener('click', copyShareLink); }
