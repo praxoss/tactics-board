@@ -1,0 +1,54 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: implaqubles-tactics-board-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: gen-lang-client-0903725161
+  GCP_REGION: europe-west1
+  CLOUD_RUN_SERVICE: implaqubles-tactics-board
+  GCP_WORKLOAD_IDENTITY_PROVIDER: projects/496107787208/locations/global/workloadIdentityPools/github-pool/providers/implaquables-provider
+  GCP_SERVICE_ACCOUNT: github-deploy@gen-lang-client-0903725161.iam.gserviceaccount.com
+
+jobs:
+  deploy:
+    name: Validate and deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate JavaScript
+        run: |
+          node --check app.js
+          node --check setpiece-data.js
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "$CLOUD_RUN_SERVICE" \
+            --source . \
+            --region "$GCP_REGION" \
+            --project "$GCP_PROJECT_ID" \
+            --allow-unauthenticated \
+            --quiet
