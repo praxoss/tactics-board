@@ -12,4 +12,12 @@ Private tactical board for creating, animating, saving and sharing rugby plays.
 
 ## Run locally
 
-Open `index.html` in a browser.
+From this folder, run:
+
+```bash
+python3 -m http.server 8000
+```
+
+Then open <http://localhost:8000>.
+
+On macOS, you can also double-click `start-local.command`.
