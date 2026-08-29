@@ -273,7 +273,18 @@
     if (action.kind === 'highlight') { const r = svgEl('rect',{x:action.x,y:action.y,width:action.width,height:action.height,rx:10,fill:'rgba(250,204,21,.18)',stroke:'#facc15','stroke-width':2,'stroke-dasharray':'6 4'}); r.addEventListener('pointerdown',e=>{e.stopPropagation(); if(tool==='erase') removeAction(action.id);}); board.append(r); return; }
     if (!action.points?.length) return; const points = action.points.map(p=>`${p.x},${p.y}`).join(' '); const color = ACTION_COLORS[action.kind] || '#fff'; const path = svgEl('polyline',{points,fill:'none',stroke:'rgba(0,0,0,.65)','stroke-width':6,'stroke-linecap':'round','stroke-linejoin':'round'}); const line = svgEl('polyline',{points,fill:'none',stroke:color,'stroke-width':3,'stroke-linecap':'round','stroke-linejoin':'round','stroke-dasharray':action.kind==='pass'?'8 6':action.kind==='kick'?'16 12':action.kind==='run'?'12 8':'12 8','marker-end':'url(#arrow)',style:tool==='erase'?'cursor:crosshair':''}); line.addEventListener('pointerdown',e=>{e.stopPropagation(); if(tool==='erase') removeAction(action.id);}); board.append(path,line);
   }
-  function boardPoint(event) { const rect = board.getBoundingClientRect(); return { x: clamp((event.clientX - rect.left) / rect.width * W, 0, W), y: clamp((event.clientY - rect.top) / rect.height * H, 0, H) }; }
+  function boardPoint(event) {
+    const matrix = board.getScreenCTM?.();
+    if (matrix && board.createSVGPoint) {
+      const point = board.createSVGPoint();
+      point.x = event.clientX;
+      point.y = event.clientY;
+      const local = point.matrixTransform(matrix.inverse());
+      return { x: clamp(local.x, 0, W), y: clamp(local.y, 0, H) };
+    }
+    const rect = board.getBoundingClientRect();
+    return { x: clamp((event.clientX - rect.left) / rect.width * W, 0, W), y: clamp((event.clientY - rect.top) / rect.height * H, 0, H) };
+  }
   function beginMove(event, id) { event.stopPropagation(); if (playing || tool !== 'select') return; pushHistory(); const p = boardPoint(event); moving = { id, start:p, original: clone(id === 'ball' ? activeStage().ball : activeStage().players.find(x => x.id === id)) }; board.setPointerCapture?.(event.pointerId); }
   function handlePointerDown(event) { if (playing) return; const p = boardPoint(event); if (tool === 'select') return; if (tool === 'erase') return; if (['run','carry','pass','kick'].includes(tool)) { drawing = { kind:tool, points:[p] }; board.setPointerCapture?.(event.pointerId); } else if (tool === 'highlight' || tool === 'text') { drawing = { kind:tool, start:p, current:p }; board.setPointerCapture?.(event.pointerId); } }
   function handlePointerMove(event) { const p = boardPoint(event); if (moving) { if (moving.id === 'ball') { activeStage().ball = p; } else { const player = activeStage().players.find(x=>x.id===moving.id); if (player) { player.x=p.x; player.y=p.y; } } renderBoard(); return; } if (!drawing) return; if (drawing.points) drawing.points.push(p); else drawing.current = p; renderBoard(); }
