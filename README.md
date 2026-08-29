@@ -62,6 +62,17 @@ Le service est déployé sur le projet GCP existant, dans la région `europe-wes
 
 Le conteneur utilise Nginx pour servir les fichiers statiques sur le port `8080`, attendu par Cloud Run. Les fichiers `Dockerfile`, `nginx.conf` et `.dockerignore` décrivent ce déploiement.
 
+## CI/CD GitHub Actions
+
+Chaque commit poussé sur la branche `main` déclenche automatiquement le workflow `.github/workflows/deploy.yml` :
+
+1. vérification de la syntaxe JavaScript ;
+2. construction de l’image Docker ;
+3. publication dans Artifact Registry ;
+4. déploiement de la nouvelle image sur Cloud Run.
+
+Le workflow peut également être lancé manuellement depuis l’onglet **Actions** de GitHub. L’authentification utilise OIDC entre GitHub et GCP : aucune clé JSON longue durée n’est stockée dans le dépôt.
+
 ## Dépôt
 
 Ce projet est conservé dans un dépôt GitHub privé pour l’équipe des Implacables.
