@@ -44,10 +44,20 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Deploy to Cloud Run
+      - name: Configure Docker authentication
+        run: gcloud auth configure-docker "$GCP_REGION-docker.pkg.dev" --quiet
+
+      - name: Build and push image
+        run: |
+          image="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/cloud-run-source-deploy/$CLOUD_RUN_SERVICE:$GITHUB_SHA"
+          docker build --platform linux/amd64 --tag "$image" .
+          docker push "$image"
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+
+      - name: Deploy image to Cloud Run
         run: |
           gcloud run deploy "$CLOUD_RUN_SERVICE" \
-            --source . \
+            --image "$IMAGE" \
             --region "$GCP_REGION" \
             --project "$GCP_PROJECT_ID" \
             --allow-unauthenticated \
