@@ -289,9 +289,43 @@
     const rect = board.getBoundingClientRect();
     return { x: clamp((event.clientX - rect.left) / rect.width * W, 0, W), y: clamp((event.clientY - rect.top) / rect.height * H, 0, H) };
   }
-  function beginMove(event, id) { event.stopPropagation(); if (playing || tool !== 'select') return; pushHistory(); const p = boardPoint(event); moving = { id, start:p, original: clone(id === 'ball' ? activeStage().ball : activeStage().players.find(x => x.id === id)) }; board.setPointerCapture?.(event.pointerId); }
+  function beginMove(event, id) {
+    event.stopPropagation();
+    if (playing || tool !== 'select') return;
+    const p = boardPoint(event);
+    const current = id === 'ball' ? activeStage().ball : activeStage().players.find(player => player.id === id);
+    if (!current) return;
+    pushHistory();
+    moving = {
+      id,
+      start: p,
+      offset: { x: p.x - current.x, y: p.y - current.y },
+      original: clone(current)
+    };
+    board.setPointerCapture?.(event.pointerId);
+  }
   function handlePointerDown(event) { if (playing) return; const p = boardPoint(event); if (tool === 'select') return; if (tool === 'erase') return; if (['run','carry','pass','kick'].includes(tool)) { drawing = { kind:tool, points:[p] }; board.setPointerCapture?.(event.pointerId); } else if (tool === 'highlight' || tool === 'text') { drawing = { kind:tool, start:p, current:p }; board.setPointerCapture?.(event.pointerId); } }
-  function handlePointerMove(event) { const p = boardPoint(event); if (moving) { if (moving.id === 'ball') { activeStage().ball = p; } else { const player = activeStage().players.find(x=>x.id===moving.id); if (player) { player.x=p.x; player.y=p.y; } } renderBoard(); return; } if (!drawing) return; if (drawing.points) drawing.points.push(p); else drawing.current = p; renderBoard(); }
+  function handlePointerMove(event) {
+    const p = boardPoint(event);
+    if (moving) {
+      const radius = moving.id === 'ball' ? BALL_R : PLAYER_R;
+      const next = {
+        x: clamp(p.x - moving.offset.x, radius, W - radius),
+        y: clamp(p.y - moving.offset.y, radius, H - radius)
+      };
+      if (moving.id === 'ball') {
+        activeStage().ball = next;
+      } else {
+        const player = activeStage().players.find(x => x.id === moving.id);
+        if (player) { player.x = next.x; player.y = next.y; }
+      }
+      renderBoard();
+      return;
+    }
+    if (!drawing) return;
+    if (drawing.points) drawing.points.push(p); else drawing.current = p;
+    renderBoard();
+  }
   function handlePointerUp(event) { const p = boardPoint(event); if (moving) { moving = null; saveLocal(); render(); return; } if (!drawing) return; if (drawing.points) { if (drawing.points.length > 1) { pushHistory(); activeStage().actions.push({id:uid('action'),kind:drawing.kind,points:drawing.points}); saveLocal(); } } else { const x=Math.min(drawing.start.x,p.x), y=Math.min(drawing.start.y,p.y), width=Math.abs(p.x-drawing.start.x), height=Math.abs(p.y-drawing.start.y); if (width > 40 && height > 25) { pushHistory(); activeStage().actions.push(drawing.kind === 'highlight' ? {id:uid('action'),kind:'highlight',x,y,width,height} : {id:uid('action'),kind:'text',title:'Note',text:'',x,y,width,height}); saveLocal(); if (drawing.kind === 'text') window.setTimeout(()=>editNote(activeStage().actions.at(-1).id),0); } } drawing = null; render(); }
   function removePlayer(id) { commit(() => activeStage().players = activeStage().players.filter(player => player.id !== id)); showNotice('Player removed.'); }
   function resetBall() { commit(() => activeStage().ball = clone(defaultStage().ball)); showNotice('Ball reset.'); }
