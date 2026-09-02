@@ -202,6 +202,7 @@
   function svgEl(name, attrs = {}, text = '') { const el = document.createElementNS(NS, name); Object.entries(attrs).forEach(([key, val]) => el.setAttribute(key, val)); if (text) el.textContent = text; return el; }
   function renderBoard(stage = activeStage()) {
     board.replaceChildren();
+    board.setAttribute('data-view', stage.boardView);
     const defs = svgEl('defs'); defs.innerHTML = `<marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="context-stroke"/></marker><filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity=".4"/></filter>`; board.append(defs);
     renderPitch(stage.boardView); stage.actions.forEach(action => renderAction(action)); stage.players.forEach(player => renderPlayer(player)); renderBall(stage.ball);
   }
@@ -292,9 +293,19 @@
   function handlePointerDown(event) { if (playing) return; const p = boardPoint(event); if (tool === 'select') return; if (tool === 'erase') return; if (['run','carry','pass','kick'].includes(tool)) { drawing = { kind:tool, points:[p] }; board.setPointerCapture?.(event.pointerId); } else if (tool === 'highlight' || tool === 'text') { drawing = { kind:tool, start:p, current:p }; board.setPointerCapture?.(event.pointerId); } }
   function handlePointerMove(event) { const p = boardPoint(event); if (moving) { if (moving.id === 'ball') { activeStage().ball = p; } else { const player = activeStage().players.find(x=>x.id===moving.id); if (player) { player.x=p.x; player.y=p.y; } } renderBoard(); return; } if (!drawing) return; if (drawing.points) drawing.points.push(p); else drawing.current = p; renderBoard(); }
   function handlePointerUp(event) { const p = boardPoint(event); if (moving) { moving = null; saveLocal(); render(); return; } if (!drawing) return; if (drawing.points) { if (drawing.points.length > 1) { pushHistory(); activeStage().actions.push({id:uid('action'),kind:drawing.kind,points:drawing.points}); saveLocal(); } } else { const x=Math.min(drawing.start.x,p.x), y=Math.min(drawing.start.y,p.y), width=Math.abs(p.x-drawing.start.x), height=Math.abs(p.y-drawing.start.y); if (width > 40 && height > 25) { pushHistory(); activeStage().actions.push(drawing.kind === 'highlight' ? {id:uid('action'),kind:'highlight',x,y,width,height} : {id:uid('action'),kind:'text',title:'Note',text:'',x,y,width,height}); saveLocal(); if (drawing.kind === 'text') window.setTimeout(()=>editNote(activeStage().actions.at(-1).id),0); } } drawing = null; render(); }
+  function removePlayer(id) { commit(() => activeStage().players = activeStage().players.filter(player => player.id !== id)); showNotice('Player removed.'); }
+  function resetBall() { commit(() => activeStage().ball = clone(defaultStage().ball)); showNotice('Ball reset.'); }
+  function handleErasePointerDown(event) {
+    if (tool !== 'erase') return;
+    const element = event.target.closest?.('[data-id]');
+    if (!element) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    element.dataset.id === 'ball' ? resetBall() : removePlayer(element.dataset.id);
+  }
   function removeAction(id) { commit(() => activeStage().actions = activeStage().actions.filter(a=>a.id!==id)); }
   function editNote(id) { const action = activeStage().actions.find(a=>a.id===id); if (!action) return; const text = prompt('Note text', action.text || ''); if (text === null) return; commit(() => action.text = text.slice(0,1000)); }
-  board.addEventListener('pointerdown', handlePointerDown); board.addEventListener('pointermove', handlePointerMove); board.addEventListener('pointerup', handlePointerUp); board.addEventListener('pointercancel', handlePointerUp);
+  board.addEventListener('pointerdown', handleErasePointerDown, true); board.addEventListener('pointerdown', handlePointerDown); board.addEventListener('pointermove', handlePointerMove); board.addEventListener('pointerup', handlePointerUp); board.addEventListener('pointercancel', handlePointerUp);
   document.addEventListener('keydown', event => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); } if (event.key === 'Escape') { modal = null; renderModal(); } });
 
   function addStage() { commit(() => { const next = clone(activeStage()); data.stages.splice(data.currentStageIndex + 1, 0, next); data.currentStageIndex += 1; }); }
