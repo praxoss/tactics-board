@@ -290,6 +290,26 @@
     const last = points[points.length - 1];
     return `${d} Q ${previous.x} ${previous.y} ${last.x} ${last.y}`;
   }
+  function quadraticPoint(start, control, end, amount) {
+    const inverse = 1 - amount;
+    return { x: inverse * inverse * start.x + 2 * inverse * amount * control.x + amount * amount * end.x, y: inverse * inverse * start.y + 2 * inverse * amount * control.y + amount * amount * end.y };
+  }
+  function smoothPathPoints(points, steps = 8) {
+    if (!points?.length || points.length < 3) return points || [];
+    const smoothed = [points[0]];
+    let start = points[0];
+    for (let index = 1; index < points.length - 1; index += 1) {
+      const control = points[index];
+      const next = points[index + 1];
+      const end = { x: (control.x + next.x) / 2, y: (control.y + next.y) / 2 };
+      for (let step = 1; step <= steps; step += 1) smoothed.push(quadraticPoint(start, control, end, step / steps));
+      start = end;
+    }
+    const control = points[points.length - 2];
+    const end = points[points.length - 1];
+    for (let step = 1; step <= steps; step += 1) smoothed.push(quadraticPoint(start, control, end, step / steps));
+    return smoothed;
+  }
   function renderAction(action, preview = false) {
     if (action.kind === 'text') { const g = svgEl('g',{transform:`translate(${action.x} ${action.y})`}); g.append(svgEl('rect',{width:action.width||150,height:action.height||62,rx:12,fill:'#18263d',stroke:'#67e8f9','stroke-width':1.5})); g.append(svgEl('text',{x:12,y:23,fill:'#67e8f9','font-size':11,'font-weight':800},action.title || 'Note')); const words = String(action.text || 'Add detail').slice(0, 90).match(/.{1,25}/g) || []; words.slice(0,3).forEach((line,i) => g.append(svgEl('text',{x:12,y:43+i*15,fill:'#e2e8f0','font-size':12},line))); g.addEventListener('pointerdown', e => { e.stopPropagation(); if (tool === 'erase') removeAction(action.id); else if (tool === 'select') editNote(action.id); }); board.append(g); return; }
     if (action.kind === 'highlight') { const r = svgEl('rect',{x:action.x,y:action.y,width:action.width,height:action.height,rx:10,fill:'rgba(250,204,21,.18)',stroke:'#facc15','stroke-width':2,'stroke-dasharray':'6 4'}); r.addEventListener('pointerdown',e=>{e.stopPropagation(); if(tool==='erase') removeAction(action.id);}); board.append(r); return; }
@@ -313,9 +333,15 @@
     const rect = board.getBoundingClientRect();
     return { x: clamp((event.clientX - rect.left) / rect.width * W, 0, W), y: clamp((event.clientY - rect.top) / rect.height * H, 0, H) };
   }
+  function nearestPlayer(point) {
+    return activeStage().players.reduce((nearest, player) => {
+      const distance = Math.hypot(point.x - player.x, point.y - player.y);
+      return !nearest || distance < nearest.distance ? { player, distance } : nearest;
+    }, null);
+  }
   function beginMove(event, id) {
-    event.stopPropagation();
     if (playing || tool !== 'select') return;
+    event.stopPropagation();
     const p = boardPoint(event);
     const current = id === 'ball' ? activeStage().ball : activeStage().players.find(player => player.id === id);
     if (!current) return;
@@ -328,7 +354,7 @@
     };
     board.setPointerCapture?.(event.pointerId);
   }
-  function handlePointerDown(event) { if (playing) return; const p = boardPoint(event); if (tool === 'select') return; if (tool === 'erase') return; if (['run','carry','pass','kick'].includes(tool)) { drawing = { kind:tool, points:[p] }; board.setPointerCapture?.(event.pointerId); } else if (tool === 'highlight' || tool === 'text') { drawing = { kind:tool, start:p, current:p }; board.setPointerCapture?.(event.pointerId); } }
+  function handlePointerDown(event) { if (playing) return; const p = boardPoint(event); if (tool === 'select') return; if (tool === 'erase') return; if (['run','carry','pass','kick'].includes(tool)) { const nearest = nearestPlayer(p); drawing = { kind:tool, points:[p], playerId: nearest && nearest.distance <= PLAYER_R * 3 ? nearest.player.id : null }; board.setPointerCapture?.(event.pointerId); } else if (tool === 'highlight' || tool === 'text') { drawing = { kind:tool, start:p, current:p }; board.setPointerCapture?.(event.pointerId); } }
   function handlePointerMove(event) {
     const p = boardPoint(event);
     if (moving) {
@@ -360,7 +386,7 @@
     if (drawing.points) {
       const last = drawing.points.at(-1);
       if (!last || Math.hypot(p.x - last.x, p.y - last.y) >= 1) drawing.points.push(p);
-      if (drawing.points.length > 1) { pushHistory(); activeStage().actions.push({ id:uid('action'), kind:drawing.kind, points:drawing.points }); saveLocal(); }
+      if (drawing.points.length > 1) { pushHistory(); activeStage().actions.push({ id:uid('action'), kind:drawing.kind, points:drawing.points, ...(drawing.playerId ? { playerId:drawing.playerId } : {}) }); saveLocal(); }
     } else {
       const x = Math.min(drawing.start.x, p.x), y = Math.min(drawing.start.y, p.y), width = Math.abs(p.x - drawing.start.x), height = Math.abs(p.y - drawing.start.y);
       if (width > 40 && height > 25) { pushHistory(); activeStage().actions.push(drawing.kind === 'highlight' ? { id:uid('action'), kind:'highlight', x, y, width, height } : { id:uid('action'), kind:'text', title:'Note', text:'', x, y, width, height }); saveLocal(); if (drawing.kind === 'text') window.setTimeout(() => editNote(activeStage().actions.at(-1).id), 0); }
@@ -390,17 +416,54 @@
   function interpolate(from, to, amount) { return from + (to - from) * amount; }
   function interpolatePoint(from, to, amount) { return { x: interpolate(from.x, to.x, amount), y: interpolate(from.y, to.y, amount) }; }
   function findPlayer(stage, id) { return stage.players.find(player => player.id === id); }
+  function findRunForPlayer(stage, player, usedActions) {
+    const runs = stage.actions.filter(action => action.kind === 'run' && action.points?.length > 1 && !usedActions.has(action.id));
+    const explicit = runs.find(action => action.playerId === player.id);
+    if (explicit) return explicit;
+    return runs.find(action => {
+      const start = action.points[0];
+      return Math.hypot(start.x - player.x, start.y - player.y) <= PLAYER_R * 3;
+    });
+  }
+  function buildRunPath(action, from, to) {
+    const source = smoothPathPoints(action.points);
+    const first = source[0];
+    const last = source[source.length - 1];
+    const distances = [0];
+    for (let index = 1; index < source.length; index += 1) distances.push(distances[index - 1] + Math.hypot(source[index].x - source[index - 1].x, source[index].y - source[index - 1].y));
+    const total = distances.at(-1) || 1;
+    const alignedEnd = { x: from.x + last.x - first.x, y: from.y + last.y - first.y };
+    return source.map((point, index) => {
+      const progress = distances[index] / total;
+      return { x: from.x + point.x - first.x + (to.x - alignedEnd.x) * progress, y: from.y + point.y - first.y + (to.y - alignedEnd.y) * progress };
+    });
+  }
+  function samplePath(points, amount) {
+    if (!points?.length) return null;
+    if (points.length === 1) return points[0];
+    const lengths = [0];
+    for (let index = 1; index < points.length; index += 1) lengths.push(lengths[index - 1] + Math.hypot(points[index].x - points[index - 1].x, points[index].y - points[index - 1].y));
+    const target = (lengths.at(-1) || 0) * amount;
+    const segment = lengths.findIndex(length => length >= target);
+    const index = segment <= 0 ? 1 : segment;
+    const startLength = lengths[index - 1];
+    const segmentLength = lengths[index] - startLength || 1;
+    return interpolatePoint(points[index - 1], points[index], (target - startLength) / segmentLength);
+  }
   function buildPlaybackDefinition(fromStage, toStage) {
+    const usedRunActions = new Set();
     return {
       players: toStage.players.map(player => {
         const origin = findPlayer(fromStage, player.id) || player;
-        return { id: player.id, team: player.team, number: player.number, from: { x: origin.x, y: origin.y }, to: { x: player.x, y: player.y } };
+        const run = findRunForPlayer(fromStage, origin, usedRunActions);
+        if (run) usedRunActions.add(run.id);
+        return { id: player.id, team: player.team, number: player.number, from: { x: origin.x, y: origin.y }, to: { x: player.x, y: player.y }, path: run ? buildRunPath(run, origin, player) : null };
       }),
       ball: { from: { ...fromStage.ball }, to: { ...toStage.ball } }
     };
   }
   function applyPlaybackFrame(definition, amount) {
-    const positions = definition.players.map(player => ({ id: player.id, x: interpolate(player.from.x, player.to.x, amount), y: interpolate(player.from.y, player.to.y, amount) }));
+    const positions = definition.players.map(player => { const point = player.path ? samplePath(player.path, amount) : interpolatePoint(player.from, player.to, amount); return { id: player.id, ...point }; });
     positions.forEach(position => {
       const element = [...board.querySelectorAll('[data-id]')].find(node => node.dataset.id === position.id);
       if (element) element.setAttribute('transform', `translate(${position.x} ${position.y})`);
