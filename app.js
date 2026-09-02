@@ -354,7 +354,7 @@
     };
     board.setPointerCapture?.(event.pointerId);
   }
-  function handlePointerDown(event) { if (playing) return; const p = boardPoint(event); if (tool === 'select') return; if (tool === 'erase') return; if (['run','carry','pass','kick'].includes(tool)) { const nearest = nearestPlayer(p); drawing = { kind:tool, points:[p], playerId: nearest && nearest.distance <= PLAYER_R * 3 ? nearest.player.id : null }; board.setPointerCapture?.(event.pointerId); } else if (tool === 'highlight' || tool === 'text') { drawing = { kind:tool, start:p, current:p }; board.setPointerCapture?.(event.pointerId); } }
+  function handlePointerDown(event) { if (playing) return; const p = boardPoint(event); if (tool === 'select') return; if (tool === 'erase') return; if (['run','carry','pass','kick'].includes(tool)) { const nearest = nearestPlayer(p); const ballDistance = Math.hypot(p.x - activeStage().ball.x, p.y - activeStage().ball.y); drawing = { kind:tool, points:[p], playerId: nearest && nearest.distance <= PLAYER_R * 3 ? nearest.player.id : null, ballId: tool === 'pass' && ballDistance <= BALL_R * 4 ? 'ball' : null }; board.setPointerCapture?.(event.pointerId); } else if (tool === 'highlight' || tool === 'text') { drawing = { kind:tool, start:p, current:p }; board.setPointerCapture?.(event.pointerId); } }
   function handlePointerMove(event) {
     const p = boardPoint(event);
     if (moving) {
@@ -386,7 +386,7 @@
     if (drawing.points) {
       const last = drawing.points.at(-1);
       if (!last || Math.hypot(p.x - last.x, p.y - last.y) >= 1) drawing.points.push(p);
-      if (drawing.points.length > 1) { pushHistory(); activeStage().actions.push({ id:uid('action'), kind:drawing.kind, points:drawing.points, ...(drawing.playerId ? { playerId:drawing.playerId } : {}) }); saveLocal(); }
+      if (drawing.points.length > 1) { pushHistory(); activeStage().actions.push({ id:uid('action'), kind:drawing.kind, points:drawing.points, ...(drawing.playerId ? { playerId:drawing.playerId } : {}), ...(drawing.ballId ? { ballId:drawing.ballId } : {}) }); saveLocal(); }
     } else {
       const x = Math.min(drawing.start.x, p.x), y = Math.min(drawing.start.y, p.y), width = Math.abs(p.x - drawing.start.x), height = Math.abs(p.y - drawing.start.y);
       if (width > 40 && height > 25) { pushHistory(); activeStage().actions.push(drawing.kind === 'highlight' ? { id:uid('action'), kind:'highlight', x, y, width, height } : { id:uid('action'), kind:'text', title:'Note', text:'', x, y, width, height }); saveLocal(); if (drawing.kind === 'text') window.setTimeout(() => editNote(activeStage().actions.at(-1).id), 0); }
@@ -425,6 +425,15 @@
       return Math.hypot(start.x - player.x, start.y - player.y) <= PLAYER_R * 3;
     });
   }
+  function findPassForBall(stage, usedActions) {
+    const passes = stage.actions.filter(action => action.kind === 'pass' && action.points?.length > 1 && !usedActions.has(action.id));
+    const explicit = passes.find(action => action.ballId === 'ball');
+    if (explicit) return explicit;
+    return passes.find(action => {
+      const start = action.points[0];
+      return Math.hypot(start.x - stage.ball.x, start.y - stage.ball.y) <= BALL_R * 4;
+    });
+  }
   function buildRunPath(action, from, to) {
     const source = smoothPathPoints(action.points);
     const first = source[0];
@@ -452,6 +461,7 @@
   }
   function buildPlaybackDefinition(fromStage, toStage) {
     const usedRunActions = new Set();
+    const pass = findPassForBall(fromStage, new Set());
     return {
       players: toStage.players.map(player => {
         const origin = findPlayer(fromStage, player.id) || player;
@@ -459,7 +469,7 @@
         if (run) usedRunActions.add(run.id);
         return { id: player.id, team: player.team, number: player.number, from: { x: origin.x, y: origin.y }, to: { x: player.x, y: player.y }, path: run ? buildRunPath(run, origin, player) : null };
       }),
-      ball: { from: { ...fromStage.ball }, to: { ...toStage.ball } }
+      ball: { from: { ...fromStage.ball }, to: { ...toStage.ball }, path: pass ? buildRunPath(pass, fromStage.ball, toStage.ball) : null }
     };
   }
   function applyPlaybackFrame(definition, amount) {
@@ -468,7 +478,7 @@
       const element = [...board.querySelectorAll('[data-id]')].find(node => node.dataset.id === position.id);
       if (element) element.setAttribute('transform', `translate(${position.x} ${position.y})`);
     });
-    const ball = interpolatePoint(definition.ball.from, definition.ball.to, amount);
+    const ball = definition.ball.path ? samplePath(definition.ball.path, amount) : interpolatePoint(definition.ball.from, definition.ball.to, amount);
     const ballElement = board.querySelector('[data-id="ball"]');
     if (ballElement) ballElement.setAttribute('transform', `translate(${ball.x} ${ball.y})`);
   }
