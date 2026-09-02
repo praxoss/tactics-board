@@ -203,7 +203,7 @@
   function renderBoard(stage = activeStage()) {
     board.replaceChildren();
     board.setAttribute('data-view', stage.boardView);
-    const defs = svgEl('defs'); defs.innerHTML = `<marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="context-stroke"/></marker><filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity=".4"/></filter>`; board.append(defs);
+    const defs = svgEl('defs'); defs.innerHTML = `<marker id="arrow" viewBox="0 0 12 12" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L12 6 L0 12 L3 6 Z" fill="context-stroke"/></marker><filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity=".4"/></filter>`; board.append(defs);
     renderPitch(stage.boardView);
     stage.actions.forEach(action => renderAction(action));
     if (drawing?.points?.length) renderAction({ kind: drawing.kind, points: drawing.points }, true);
@@ -276,14 +276,28 @@
   }
   function renderPlayer(player) { const color = player.team === 'attack' ? '#0ea5e9' : '#f43f5e'; const stroke = player.team === 'attack' ? '#e0f2fe' : '#ffe4e6'; const g = svgEl('g', { 'data-id':player.id, transform:`translate(${player.x} ${player.y})`, filter:'url(#shadow)', style:`cursor:${tool === 'select' && !playing ? 'grab' : 'default'}` }); g.append(svgEl('circle',{r:PLAYER_R,fill:color,stroke,'stroke-width':1.5})); g.append(svgEl('text',{x:0,y:5,'text-anchor':'middle',fill:'#fff','font-size':11,'font-weight':800,'pointer-events':'none'},player.number)); g.addEventListener('pointerdown', e => beginMove(e, player.id)); board.append(g); }
   function renderBall(ball) { const g = svgEl('g',{'data-id':'ball',transform:`translate(${ball.x} ${ball.y})`}); g.append(svgEl('ellipse',{rx:12,ry:6,fill:'#f5f5f5',stroke:'#000','stroke-width':1.5})); g.append(svgEl('ellipse',{rx:11.5,ry:3,fill:'#ececec',stroke:'#000','stroke-width':1})); g.addEventListener('pointerdown', e => beginMove(e,'ball')); board.append(g); }
+  function actionPath(points) {
+    if (!points?.length) return '';
+    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+    if (points.length === 2) return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+    let d = `M ${points[0].x} ${points[0].y}`;
+    for (let index = 1; index < points.length - 1; index += 1) {
+      const current = points[index];
+      const next = points[index + 1];
+      d += ` Q ${current.x} ${current.y} ${(current.x + next.x) / 2} ${(current.y + next.y) / 2}`;
+    }
+    const previous = points[points.length - 2];
+    const last = points[points.length - 1];
+    return `${d} Q ${previous.x} ${previous.y} ${last.x} ${last.y}`;
+  }
   function renderAction(action, preview = false) {
     if (action.kind === 'text') { const g = svgEl('g',{transform:`translate(${action.x} ${action.y})`}); g.append(svgEl('rect',{width:action.width||150,height:action.height||62,rx:12,fill:'#18263d',stroke:'#67e8f9','stroke-width':1.5})); g.append(svgEl('text',{x:12,y:23,fill:'#67e8f9','font-size':11,'font-weight':800},action.title || 'Note')); const words = String(action.text || 'Add detail').slice(0, 90).match(/.{1,25}/g) || []; words.slice(0,3).forEach((line,i) => g.append(svgEl('text',{x:12,y:43+i*15,fill:'#e2e8f0','font-size':12},line))); g.addEventListener('pointerdown', e => { e.stopPropagation(); if (tool === 'erase') removeAction(action.id); else if (tool === 'select') editNote(action.id); }); board.append(g); return; }
     if (action.kind === 'highlight') { const r = svgEl('rect',{x:action.x,y:action.y,width:action.width,height:action.height,rx:10,fill:'rgba(250,204,21,.18)',stroke:'#facc15','stroke-width':2,'stroke-dasharray':'6 4'}); r.addEventListener('pointerdown',e=>{e.stopPropagation(); if(tool==='erase') removeAction(action.id);}); board.append(r); return; }
     if (!action.points?.length) return;
-    const points = action.points.map(p => `${p.x},${p.y}`).join(' ');
+    const pathData = actionPath(action.points);
     const color = ACTION_COLORS[action.kind] || '#fff';
-    const path = svgEl('polyline', { points, fill:'none', stroke:'rgba(0,0,0,.65)', 'stroke-width': preview ? 8 : 6, 'stroke-linecap':'round', 'stroke-linejoin':'round', opacity: preview ? .45 : 1, 'pointer-events':'none' });
-    const line = svgEl('polyline', { points, fill:'none', stroke:color, 'stroke-width':preview ? 4 : 3, 'stroke-linecap':'round', 'stroke-linejoin':'round', 'stroke-dasharray':action.kind==='pass'?'8 6':action.kind==='kick'?'16 12':action.kind==='run'?'12 8':'12 8', 'marker-end':'url(#arrow)', opacity: preview ? .9 : 1, 'pointer-events': preview ? 'none' : 'auto', style:!preview && tool==='erase'?'cursor:crosshair':'' });
+    const path = svgEl('path', { d:pathData, fill:'none', stroke:'rgba(0,0,0,.65)', 'stroke-width': preview ? 8 : 6, 'stroke-linecap':'round', 'stroke-linejoin':'round', opacity: preview ? .45 : 1, 'pointer-events':'none' });
+    const line = svgEl('path', { d:pathData, fill:'none', stroke:color, 'stroke-width':preview ? 4 : 3, 'stroke-linecap':'round', 'stroke-linejoin':'round', 'stroke-dasharray':action.kind==='pass'?'8 6':action.kind==='kick'?'16 12':action.kind==='run'?'12 8':'12 8', 'marker-end':'url(#arrow)', opacity: preview ? .9 : 1, 'pointer-events': preview ? 'none' : 'auto', style:!preview && tool==='erase'?'cursor:crosshair':'' });
     if (!preview) line.addEventListener('pointerdown', e => { e.stopPropagation(); if (tool === 'erase') removeAction(action.id); });
     board.append(path, line);
   }
@@ -333,10 +347,27 @@
       return;
     }
     if (!drawing) return;
-    if (drawing.points) drawing.points.push(p); else drawing.current = p;
+    if (drawing.points) {
+      const last = drawing.points.at(-1);
+      if (!last || Math.hypot(p.x - last.x, p.y - last.y) >= 3) drawing.points.push(p);
+    } else drawing.current = p;
     renderBoard();
   }
-  function handlePointerUp(event) { const p = boardPoint(event); if (moving) { moving = null; saveLocal(); render(); return; } if (!drawing) return; if (drawing.points) { if (drawing.points.length > 1) { pushHistory(); activeStage().actions.push({id:uid('action'),kind:drawing.kind,points:drawing.points}); saveLocal(); } } else { const x=Math.min(drawing.start.x,p.x), y=Math.min(drawing.start.y,p.y), width=Math.abs(p.x-drawing.start.x), height=Math.abs(p.y-drawing.start.y); if (width > 40 && height > 25) { pushHistory(); activeStage().actions.push(drawing.kind === 'highlight' ? {id:uid('action'),kind:'highlight',x,y,width,height} : {id:uid('action'),kind:'text',title:'Note',text:'',x,y,width,height}); saveLocal(); if (drawing.kind === 'text') window.setTimeout(()=>editNote(activeStage().actions.at(-1).id),0); } } drawing = null; render(); }
+  function handlePointerUp(event) {
+    const p = boardPoint(event);
+    if (moving) { moving = null; saveLocal(); render(); return; }
+    if (!drawing) return;
+    if (drawing.points) {
+      const last = drawing.points.at(-1);
+      if (!last || Math.hypot(p.x - last.x, p.y - last.y) >= 1) drawing.points.push(p);
+      if (drawing.points.length > 1) { pushHistory(); activeStage().actions.push({ id:uid('action'), kind:drawing.kind, points:drawing.points }); saveLocal(); }
+    } else {
+      const x = Math.min(drawing.start.x, p.x), y = Math.min(drawing.start.y, p.y), width = Math.abs(p.x - drawing.start.x), height = Math.abs(p.y - drawing.start.y);
+      if (width > 40 && height > 25) { pushHistory(); activeStage().actions.push(drawing.kind === 'highlight' ? { id:uid('action'), kind:'highlight', x, y, width, height } : { id:uid('action'), kind:'text', title:'Note', text:'', x, y, width, height }); saveLocal(); if (drawing.kind === 'text') window.setTimeout(() => editNote(activeStage().actions.at(-1).id), 0); }
+    }
+    drawing = null;
+    render();
+  }
   function removePlayer(id) { commit(() => activeStage().players = activeStage().players.filter(player => player.id !== id)); showNotice('Player removed.'); }
   function resetBall() { commit(() => activeStage().ball = clone(defaultStage().ball)); showNotice('Ball reset.'); }
   function handleErasePointerDown(event) {
