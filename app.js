@@ -122,7 +122,16 @@
     leftPanel.querySelector('#scrum-btn').onclick = () => showSetup('scrum');
     rightPanel.querySelector('#undo-btn').onclick = undo; rightPanel.querySelector('#redo-btn').onclick = redo;
     rightPanel.querySelector('#share-btn').onclick = () => openModal('metadata'); rightPanel.querySelector('#import-btn').onclick = () => rightPanel.querySelector('#import-file').click();
-    rightPanel.querySelector('#clear-btn').onclick = () => { if (confirm('Clear the current phase?')) commit(() => Object.assign(activeStage(), defaultStage())); };
+    rightPanel.querySelector('#clear-btn').onclick = () => {
+      if (!confirm('Clear the entire play?')) return;
+      const selectedView = activeStage().boardView;
+      commit(() => {
+        data = defaultData();
+        data.stages[0].boardView = selectedView;
+        setupState = { kind: '', possession: 'attack', size: 5, locationId: 'halfway-left' };
+      });
+      showNotice('Board cleared.');
+    };
     rightPanel.querySelector('#import-file').onchange = event => importFile(event.target.files?.[0]);
   }
   function showSetup(kind) {
