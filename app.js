@@ -418,76 +418,62 @@
   board.addEventListener('pointerdown', handleErasePointerDown, true); board.addEventListener('pointerdown', handlePointerDown); board.addEventListener('pointermove', handlePointerMove); board.addEventListener('pointerup', handlePointerUp); board.addEventListener('pointercancel', handlePointerUp);
   document.addEventListener('keydown', event => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); } if (event.key === 'Escape') { modal = null; renderModal(); } });
 
-  function addStage() { commit(() => { const next = clone(activeStage()); data.stages.splice(data.currentStageIndex + 1, 0, next); data.currentStageIndex += 1; }); }
+  function addStage() {
+    commit(() => {
+      // A stage keeps the board state, but actions belong to the transition
+      // starting from the stage where they were drawn. Copying them forward
+      // makes a route play again on later transitions.
+      const next = clone(activeStage());
+      next.actions = [];
+      data.stages.splice(data.currentStageIndex + 1, 0, next);
+      data.currentStageIndex += 1;
+    });
+  }
   function removeStage() { if (data.stages.length === 1) return; commit(() => { data.stages.splice(data.currentStageIndex, 1); data.currentStageIndex = clamp(data.currentStageIndex - 1, 0, data.stages.length - 1); }); }
   function setStage(index) { stopPlayback(); data.currentStageIndex = clamp(index,0,data.stages.length-1); render(); }
   function togglePlayback() { playing ? stopPlayback() : startPlayback(); }
-  function interpolate(from, to, amount) { return from + (to - from) * amount; }
-  function interpolatePoint(from, to, amount) { return { x: interpolate(from.x, to.x, amount), y: interpolate(from.y, to.y, amount) }; }
   function findPlayer(stage, id) { return stage.players.find(player => player.id === id); }
-  function findRunForPlayer(stage, player, usedActions) {
-    const runs = stage.actions.filter(action => action.kind === 'run' && action.points?.length > 1 && !usedActions.has(action.id));
-    const explicit = runs.find(action => action.playerId === player.id);
-    if (explicit) return explicit;
-    return runs.find(action => {
-      const start = action.points[0];
-      return Math.hypot(start.x - player.x, start.y - player.y) <= PLAYER_R * 3;
-    });
+  function curveSign(seed) {
+    let hash = 0;
+    for (const character of String(seed)) hash = (hash * 31 + character.charCodeAt(0)) | 0;
+    return hash % 2 === 0 ? 1 : -1;
   }
-  function findPassForBall(stage, usedActions) {
-    const passes = stage.actions.filter(action => action.kind === 'pass' && action.points?.length > 1 && !usedActions.has(action.id));
-    const explicit = passes.find(action => action.ballId === 'ball');
-    if (explicit) return explicit;
-    return passes.find(action => {
-      const start = action.points[0];
-      return Math.hypot(start.x - stage.ball.x, start.y - stage.ball.y) <= BALL_R * 4;
-    });
+  function cubicBezierPoint(start, controlStart, controlEnd, end, amount) {
+    const inverse = 1 - amount;
+    return {
+      x: inverse ** 3 * start.x + 3 * inverse ** 2 * amount * controlStart.x + 3 * inverse * amount ** 2 * controlEnd.x + amount ** 3 * end.x,
+      y: inverse ** 3 * start.y + 3 * inverse ** 2 * amount * controlStart.y + 3 * inverse * amount ** 2 * controlEnd.y + amount ** 3 * end.y
+    };
   }
-  function buildRunPath(action, from, to) {
-    const source = smoothPathPoints(action.points);
-    const first = source[0];
-    const last = source[source.length - 1];
-    const distances = [0];
-    for (let index = 1; index < source.length; index += 1) distances.push(distances[index - 1] + Math.hypot(source[index].x - source[index - 1].x, source[index].y - source[index - 1].y));
-    const total = distances.at(-1) || 1;
-    const alignedEnd = { x: from.x + last.x - first.x, y: from.y + last.y - first.y };
-    return source.map((point, index) => {
-      const progress = distances[index] / total;
-      return { x: from.x + point.x - first.x + (to.x - alignedEnd.x) * progress, y: from.y + point.y - first.y + (to.y - alignedEnd.y) * progress };
-    });
-  }
-  function samplePath(points, amount) {
-    if (!points?.length) return null;
-    if (points.length === 1) return points[0];
-    const lengths = [0];
-    for (let index = 1; index < points.length; index += 1) lengths.push(lengths[index - 1] + Math.hypot(points[index].x - points[index - 1].x, points[index].y - points[index - 1].y));
-    const target = (lengths.at(-1) || 0) * amount;
-    const segment = lengths.findIndex(length => length >= target);
-    const index = segment <= 0 ? 1 : segment;
-    const startLength = lengths[index - 1];
-    const segmentLength = lengths[index] - startLength || 1;
-    return interpolatePoint(points[index - 1], points[index], (target - startLength) / segmentLength);
+  function interpolateCurvePoint(from, to, amount, seed) {
+    const distance = Math.hypot(to.x - from.x, to.y - from.y);
+    if (distance <= 0.5) return { x: to.x, y: to.y };
+
+    // Keep short corrections visually stable; curve only meaningful moves.
+    const bend = distance < 24 ? 0 : Math.min(distance * 0.12, 36) * curveSign(seed);
+    const normal = { x: -(to.y - from.y) / distance, y: (to.x - from.x) / distance };
+    const controlStart = { x: from.x + (to.x - from.x) / 3 + normal.x * bend, y: from.y + (to.y - from.y) / 3 + normal.y * bend };
+    const controlEnd = { x: from.x + 2 * (to.x - from.x) / 3 + normal.x * bend, y: from.y + 2 * (to.y - from.y) / 3 + normal.y * bend };
+    const linearAmount = clamp(amount, 0, 1);
+    const easedAmount = linearAmount * linearAmount * (3 - 2 * linearAmount);
+    return cubicBezierPoint(from, controlStart, controlEnd, to, easedAmount);
   }
   function buildPlaybackDefinition(fromStage, toStage) {
-    const usedRunActions = new Set();
-    const pass = findPassForBall(fromStage, new Set());
     return {
       players: toStage.players.map(player => {
         const origin = findPlayer(fromStage, player.id) || player;
-        const run = findRunForPlayer(fromStage, origin, usedRunActions);
-        if (run) usedRunActions.add(run.id);
-        return { id: player.id, team: player.team, number: player.number, from: { x: origin.x, y: origin.y }, to: { x: player.x, y: player.y }, path: run ? buildRunPath(run, origin, player) : null };
+        return { id: player.id, team: player.team, number: player.number, from: { x: origin.x, y: origin.y }, to: { x: player.x, y: player.y } };
       }),
-      ball: { from: { ...fromStage.ball }, to: { ...toStage.ball }, path: pass ? buildRunPath(pass, fromStage.ball, toStage.ball) : null }
+      ball: { from: { ...fromStage.ball }, to: { ...toStage.ball } }
     };
   }
   function applyPlaybackFrame(definition, amount) {
-    const positions = definition.players.map(player => { const point = player.path ? samplePath(player.path, amount) : interpolatePoint(player.from, player.to, amount); return { id: player.id, ...point }; });
+    const positions = definition.players.map(player => ({ id: player.id, ...interpolateCurvePoint(player.from, player.to, amount, player.id) }));
     positions.forEach(position => {
       const element = [...board.querySelectorAll('[data-id]')].find(node => node.dataset.id === position.id);
       if (element) element.setAttribute('transform', `translate(${position.x} ${position.y})`);
     });
-    const ball = definition.ball.path ? samplePath(definition.ball.path, amount) : interpolatePoint(definition.ball.from, definition.ball.to, amount);
+    const ball = interpolateCurvePoint(definition.ball.from, definition.ball.to, amount, 'ball');
     const ballElement = board.querySelector('[data-id="ball"]');
     if (ballElement) ballElement.setAttribute('transform', `translate(${ball.x} ${ball.y})`);
   }
