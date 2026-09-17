@@ -119,16 +119,34 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .timeline .quick-btn { min-width: 78px; }
 .range { width: 100%; accent-color: var(--cyan); }
 .stage-label { color: var(--muted); font-size: 12px; text-align: right; white-space: nowrap; }
-.export-loop-field input { margin-right: 7px; accent-color: var(--cyan); }
 .export-status { min-height: 18px; margin: 8px 0 0; color: var(--muted); font-size: 12px; }
 .modal progress { width: 100%; height: 8px; accent-color: var(--cyan); }
 
 .modal-backdrop { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(2,6,23,.72); z-index: 20; }
 .modal { width: min(500px, 100%); max-height: 90vh; overflow: auto; padding: 20px; border: 1px solid var(--line); border-radius: 24px; background: #0f172a; box-shadow: 0 28px 90px rgba(0,0,0,.55); }
+.export-modal { width: min(590px, 100%); padding: 26px; }
 .modal h2 { margin: 0 0 16px; }
 .field { display: block; margin: 12px 0; color: var(--muted); font-size: 12px; font-weight: 700; }
 .field input, .field textarea { display: block; width: 100%; margin-top: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; outline: none; color: #fff; background: #020617; }
 .field input:focus, .field textarea:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(103,232,249,.12); }
+.export-group { margin-top: 24px; }
+.export-label { margin-bottom: 9px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+.export-format-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.export-format-card, .export-speed-card { position: relative; display: flex; flex-direction: column; cursor: pointer; border: 1px solid var(--line); background: rgba(255,255,255,.045); transition: .15s ease; }
+.export-format-card { min-height: 126px; padding: 15px; border-radius: 17px; }
+.export-format-card:hover, .export-speed-card:hover { border-color: rgba(103,232,249,.62); background: rgba(14,165,233,.12); }
+.export-format-card.selected, .export-speed-card.selected { border-color: var(--cyan); background: linear-gradient(145deg, rgba(103,232,249,.18), rgba(14,165,233,.08)); box-shadow: 0 0 0 2px rgba(103,232,249,.12); }
+.export-format-card input, .export-speed-card input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.format-icon { display: inline-grid; place-items: center; width: fit-content; min-width: 47px; min-height: 29px; margin-bottom: 13px; padding: 4px 8px; border: 1px solid rgba(103,232,249,.5); border-radius: 8px; color: var(--cyan); background: rgba(2,6,23,.45); font-size: 12px; font-weight: 900; letter-spacing: .08em; }
+.format-title { color: #f8fafc; font-size: 14px; font-weight: 800; }
+.format-detail { margin-top: 4px; color: var(--muted); font-size: 11px; }
+.export-speed-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.export-speed-card { align-items: center; justify-content: center; min-height: 44px; border-radius: 12px; color: #e2e8f0; font-weight: 800; }
+.export-loop-field { display: flex; align-items: center; gap: 11px; margin-top: 23px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 14px; color: #e2e8f0; background: rgba(255,255,255,.035); cursor: pointer; }
+.export-loop-field[hidden] { display: none; }
+.export-loop-field input { width: 18px; height: 18px; margin: 0; accent-color: var(--cyan); }
+.export-loop-field span { display: flex; flex-direction: column; gap: 2px; }
+.export-loop-field small { color: var(--muted); font-size: 11px; font-weight: 500; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 .help { margin-top: 14px; padding: 11px; border-radius: 14px; color: var(--muted); background: rgba(255,255,255,.05); font-size: 12px; }
 .help strong { color: #e2e8f0; }
@@ -148,4 +166,6 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   .stage-card { flex-basis: 132px; min-width: 132px; }
   .stage-thumbnail { height: 76px; }
   .stage-add { flex-basis: 84px; min-height: 106px; }
+  .export-modal { padding: 20px; }
+  .export-format-card { min-height: 116px; padding: 13px; }
 }

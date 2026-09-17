@@ -518,7 +518,7 @@ import { createMediaExporter, GIF_FPS, MP4_FPS } from './media-export.js';
     const wrap = document.createElement('div');
     wrap.className = 'modal-backdrop';
     if (modal === 'export') {
-      wrap.innerHTML = `<div class="modal"><div class="panel-header"><div><h2>Export animation</h2><p>Render the complete stage sequence locally.</p></div><button class="panel-close" id="modal-close">×</button></div><label class="field">Format<select id="export-format"><option value="gif">GIF</option><option value="mp4">MP4</option></select></label><label class="field">Speed<select id="export-speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="1.5">1.5x</option><option value="2">2x</option></select></label><label class="field export-loop-field"><span><input type="checkbox" id="export-loop" /> Loop GIF</span></label><div class="help">GIF: ${GIF_FPS} fps at 880 × 560. MP4: ${MP4_FPS} fps at 1100 × 700 with H.264 when supported.</div><progress id="export-progress" max="1" value="0" aria-label="Export progress"></progress><p class="export-status" id="export-status" role="status"></p><div class="modal-actions"><button class="top-btn" id="modal-cancel">Cancel</button><button class="top-btn primary" id="export-run">Export</button></div></div>`;
+      wrap.innerHTML = `<div class="modal export-modal"><div class="panel-header"><div><div class="eyebrow">Save / Load</div><h2>Export animation</h2><p>Render the complete stage sequence locally.</p></div><button class="panel-close" id="modal-close">×</button></div><div class="export-group"><div class="export-label">Format</div><div class="export-format-grid" role="radiogroup" aria-label="Export format"><label class="export-format-card selected"><input type="radio" name="export-format" value="gif" checked /><span class="format-icon">GIF</span><span class="format-title">Animated image</span><span class="format-detail">${GIF_FPS} fps · 880 × 560</span></label><label class="export-format-card"><input type="radio" name="export-format" value="mp4" /><span class="format-icon">MP4</span><span class="format-title">Video</span><span class="format-detail">${MP4_FPS} fps · 1100 × 700</span></label></div></div><div class="export-group"><div class="export-label">Playback speed</div><div class="export-speed-grid" role="radiogroup" aria-label="Playback speed"><label class="export-speed-card"><input type="radio" name="export-speed" value="0.5" /><span>0.5×</span></label><label class="export-speed-card selected"><input type="radio" name="export-speed" value="1" checked /><span>1×</span></label><label class="export-speed-card"><input type="radio" name="export-speed" value="1.5" /><span>1.5×</span></label><label class="export-speed-card"><input type="radio" name="export-speed" value="2" /><span>2×</span></label></div></div><label class="export-loop-field"><input type="checkbox" id="export-loop" /><span><strong>Loop GIF</strong><small>Repeat the sequence continuously</small></span></label><div class="help">The export is rendered locally. MP4 uses H.264 when supported by the browser.</div><progress id="export-progress" max="1" value="0" aria-label="Export progress"></progress><p class="export-status" id="export-status" role="status"></p><div class="modal-actions"><button class="top-btn" id="modal-cancel">Cancel</button><button class="top-btn primary" id="export-run">Export</button></div></div>`;
     } else {
       wrap.innerHTML = `<div class="modal"><div class="panel-header"><div><h2>Save This Play</h2><p>The active play is already saved in this browser.</p></div><button class="panel-close" id="modal-close">×</button></div><label class="field">Play name<input id="meta-name" value="${esc(meta.name)}" maxlength="120" /></label><label class="field">Description<textarea id="meta-description" rows="4" maxlength="1000">${esc(meta.description)}</textarea></label><label class="field">Tags<input id="meta-tags" value="${esc(meta.tags.join(', '))}" placeholder="e.g. 40/40, FAUSSE, lineout" /></label><div class="help"><strong>Available formats</strong><br />Full JSON backup, a shareable link, GIF or MP4.</div><div class="modal-actions"><button class="top-btn" id="modal-cancel">Cancel</button><button class="top-btn" id="modal-share">Copy Link</button><button class="top-btn" id="modal-export-json">Export JSON</button><button class="top-btn" id="modal-export-media">GIF / MP4</button><button class="top-btn primary" id="modal-save">Save</button></div></div>`;
     }
@@ -532,15 +532,24 @@ import { createMediaExporter, GIF_FPS, MP4_FPS } from './media-export.js';
     wrap.querySelector('#modal-export-json')?.addEventListener('click', () => { exportJson(); modal = null; renderModal(); });
     wrap.querySelector('#modal-export-media')?.addEventListener('click', () => openModal('export'));
     wrap.querySelector('#modal-share')?.addEventListener('click', copyShareLink);
-    const format = wrap.querySelector('#export-format');
-    format?.addEventListener('change', () => { wrap.querySelector('.export-loop-field').hidden = format.value !== 'gif'; });
+    const formatInputs = wrap.querySelectorAll('[name="export-format"]');
+    const updateExportFormat = () => {
+      const selected = wrap.querySelector('[name="export-format"]:checked')?.value || 'gif';
+      formatInputs.forEach(input => input.closest('.export-format-card')?.classList.toggle('selected', input.checked));
+      wrap.querySelector('.export-loop-field').hidden = selected !== 'gif';
+    };
+    formatInputs.forEach(input => input.addEventListener('change', updateExportFormat));
+    wrap.querySelectorAll('[name="export-speed"]').forEach(input => input.addEventListener('change', event => {
+      wrap.querySelectorAll('.export-speed-card').forEach(card => card.classList.toggle('selected', card.querySelector('input') === event.target));
+    }));
+    updateExportFormat();
     wrap.querySelector('#export-run')?.addEventListener('click', () => runMediaExport(wrap));
   }
   function cancelExport() { exportJob?.controller.abort(); }
   async function runMediaExport(wrap) {
     if (exportJob) return;
-    const format = wrap.querySelector('#export-format').value;
-    const speed = Number(wrap.querySelector('#export-speed').value) || 1;
+    const format = wrap.querySelector('[name="export-format"]:checked')?.value || 'gif';
+    const speed = Number(wrap.querySelector('[name="export-speed"]:checked')?.value) || 1;
     const loop = format === 'gif' && wrap.querySelector('#export-loop').checked;
     const previous = { stageIndex: data.currentStageIndex, wasPlaying: playing };
     if (playing) stopPlayback();
