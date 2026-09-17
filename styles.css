@@ -101,6 +101,14 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .stage-summary { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .timeline-toggle { min-width: 32px; min-height: 30px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 10px; color: #e2e8f0; background: rgba(255,255,255,.06); font-weight: 800; }
 .timeline-toggle:hover { border-color: rgba(103,232,249,.65); background: rgba(14,165,233,.18); }
+.timeline-controls { display: grid; grid-template-columns: 1.2fr 1fr 1fr .75fr; gap: 8px; margin-top: 10px; }
+.timeline-action { min-height: 36px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 11px; color: #e2e8f0; background: rgba(255,255,255,.06); font-size: 12px; font-weight: 800; }
+.timeline-action:hover { border-color: rgba(103,232,249,.65); background: rgba(14,165,233,.18); }
+.timeline-play { color: #04212a; border-color: var(--cyan); background: var(--cyan); }
+.timeline-play:hover { border-color: #a5f3fc; background: #a5f3fc; }
+.timeline-scrubber { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.timeline-scrubber input { min-width: 0; flex: 1; accent-color: var(--cyan); }
+.timeline-scrubber span { color: var(--muted); font-size: 11px; font-weight: 800; white-space: nowrap; }
 .stage-strip { display: flex; gap: 9px; margin-top: 9px; padding: 2px 1px 5px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
 .stage-card { flex: 0 0 148px; min-width: 148px; padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.045); transition: .15s ease; }
 .stage-card:hover, .stage-card.drop-target { border-color: rgba(103,232,249,.65); background: rgba(14,165,233,.13); }
@@ -166,6 +174,8 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   .stage-card { flex-basis: 132px; min-width: 132px; }
   .stage-thumbnail { height: 76px; }
   .stage-add { flex-basis: 84px; min-height: 106px; }
+  .timeline-controls { grid-template-columns: 1.15fr 1fr 1fr .75fr; gap: 5px; }
+  .timeline-action { padding-inline: 6px; font-size: 11px; }
   .export-modal { padding: 20px; }
   .export-format-card { min-height: 116px; padding: 13px; }
 }
