@@ -1,0 +1,17 @@
+{
+  "name": "implaqubles-tactics-board",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild app.js src/gif-worker.js --bundle --format=esm --outdir=dist --entry-names=[name] && cp index.html styles.css setpiece-data.js badge-logo.png dist/",
+    "test": "node --test test/*.test.js",
+    "check": "node --check app.js && node --check src/app.js && node --check src/state.js && node --check src/playback.js && node --check src/stage-renderer.js && node --check src/stage-menu.js && node --check src/media-export.js && node --check src/gif-worker.js"
+  },
+  "dependencies": {
+    "gifenc": "1.0.3",
+    "mediabunny": "1.57.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

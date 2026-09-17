@@ -4,7 +4,7 @@
 
 Implaqubles Tactics Board est un outil léger de préparation tactique au rugby pour l’équipe des Implacables 1993. Il permet de dessiner une combinaison, de positionner les joueurs, de préparer les touches et les mêlées, d’enregistrer plusieurs phases et de rejouer les mouvements de manière fluide.
 
-Le projet est volontairement simple : il fonctionne dans un navigateur, sauvegarde les combinaisons localement et ne nécessite ni base de données, ni compte, ni système de compilation, ni dépendance externe.
+Le projet fonctionne dans un navigateur et sauvegarde les combinaisons localement. Il n’utilise pas de base de données : les fichiers JSON exportés restent la sauvegarde portable de référence.
 
 ## Fonctionnalités
 
@@ -20,16 +20,27 @@ Le projet est volontairement simple : il fonctionne dans un navigateur, sauvegar
 - Exporter et importer un fichier tactique JSON complet
 - Partager une combinaison avec un lien généré
 - Utiliser le blason transparent des Implacables 1993
+- Réordonner les stages par glisser-déposer ou avec les flèches
+- Réduire le panneau de contrôle et la barre des stages pour libérer le terrain
+- Exporter une séquence complète en GIF ou en MP4 depuis le navigateur
 
 ## Structure du projet
 
 ```text
 index.html          Point d’entrée de l’application
-app.js              Interactions, lecture et sauvegarde
+app.js              Entrée du bundle navigateur
+src/app.js          Interface, édition et orchestration
+src/state.js        Modèle v3, migration et identifiants stables
+src/playback.js     Plan de lecture et interpolation courbe
+src/stage-renderer.js Rendu commun du terrain et des stages
+src/stage-menu.js   Cartes, sélection et réordonnancement des stages
+src/media-export.js Export GIF / MP4
+src/gif-worker.js   Encodage GIF hors du thread d’interface
 styles.css          Styles de l’interface
 setpiece-data.js    Données des configurations de mêlée
 badge-logo.png      Logo des Implacables 1993
 start-local.command Lanceur macOS
+test/               Tests du modèle et de la lecture
 ```
 
 ## Lancer le projet en local
@@ -40,12 +51,16 @@ Depuis le dossier du dépôt :
 ./start-local.command
 ```
 
-Puis ouvre [http://localhost:8000](http://localhost:8000) dans un navigateur.
+Le lanceur construit l’application puis démarre le serveur sur [http://localhost:8000](http://localhost:8000).
 
-Alternative :
+Pour lancer les étapes séparément :
 
 ```bash
-python3 -m http.server 8000
+npm install
+npm run check
+npm test
+npm run build
+python3 -m http.server 8000 --directory dist
 ```
 
 Pour arrêter le serveur local, utilise `Ctrl+C` dans le Terminal.
@@ -72,6 +87,12 @@ Chaque commit poussé sur la branche `main` déclenche automatiquement le workfl
 4. déploiement de la nouvelle image sur Cloud Run.
 
 Le workflow peut également être lancé manuellement depuis l’onglet **Actions** de GitHub. L’authentification utilise OIDC entre GitHub et GCP : aucune clé JSON longue durée n’est stockée dans le dépôt.
+
+## Export vidéo
+
+L’export est effectué localement dans le navigateur, afin que la combinaison ne quitte pas l’appareil. Le GIF est encodé à 880 × 560 et 15 images par seconde, dans un Worker dédié. Le MP4 utilise un encodage H.264/AVC à 1100 × 700 et 30 images par seconde lorsque le navigateur le prend en charge. Les exports utilisent les positions enregistrées dans les stages ; les `Run`, `Pass`, `Kick` et autres annotations restent des éléments visuels.
+
+Pendant un export, la progression est affichée et l’opération peut être annulée. Le stage sélectionné et l’état de lecture sont restaurés à la fin.
 
 ## Dépôt
 

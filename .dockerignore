@@ -3,5 +3,7 @@
 .DS_Store
 *.docx
 sources/
+node_modules/
+dist/
 README.md
 start-local.command

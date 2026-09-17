@@ -30,10 +30,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Validate JavaScript
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install and validate
         run: |
-          node --check app.js
+          npm ci
+          npm run check
           node --check setpiece-data.js
+          npm test
+          npm run build
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
