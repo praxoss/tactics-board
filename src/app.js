@@ -508,7 +508,6 @@ import { createMediaExporter, GIF_FPS, MP4_FPS } from './media-export.js';
       onPlay: togglePlayback,
       onSpeed: cyclePlaybackSpeed,
       onSelect: stageId => setStage(data.stages.findIndex(stage => stage.id === stageId)),
-      onAdd: addStage,
       onRemove: removeStage,
       onMove: reorderStages
     });
